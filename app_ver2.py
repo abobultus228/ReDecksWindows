@@ -1,10 +1,14 @@
 import json
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+
 import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
 from PySide6.QtWidgets import (
@@ -332,6 +336,13 @@ class MainWindow(QMainWindow):
         self.token_input.setEchoMode(QLineEdit.Password)
         self.token_input.setPlaceholderText("Bearer token без слова Bearer")
 
+        self.auth_button = QPushButton("Авторизация")
+        self.auth_button.clicked.connect(self.authorize_remanga)
+
+        token_row = QHBoxLayout()
+        token_row.addWidget(self.token_input)
+        token_row.addWidget(self.auth_button)
+
         self.user_id_input = QLineEdit()
         self.user_id_input.setPlaceholderText("Например: 123456")
         self.premium_checkbox = QCheckBox("Да")
@@ -342,7 +353,7 @@ class MainWindow(QMainWindow):
         self.load_decks_button = QPushButton("Загрузить доступные колоды")
         self.load_decks_button.clicked.connect(self.load_available_decks)
 
-        api_form.addRow("Remanga token:", self.token_input)
+        api_form.addRow("Remanga token:", token_row)
         api_form.addRow("User ID:", self.user_id_input)
         api_form.addRow("Премиум аккаунт:", self.premium_checkbox)
         api_form.addRow("", self.load_collections_button)
@@ -440,6 +451,52 @@ class MainWindow(QMainWindow):
 
     def _token(self) -> str:
         return self.token_input.text().strip()
+
+    def authorize_remanga(self) -> None:
+        self.auth_button.setEnabled(False)
+
+        try:
+            options = Options()
+            options.add_argument("--start-maximized")
+
+            driver = webdriver.Chrome(options=options)
+            driver.get("https://remanga.org/")
+
+            QMessageBox.information(
+                self,
+                "Авторизация",
+                "В открывшемся окне браузера войдите в аккаунт Remanga.\n\n"
+                "После входа нажмите OK здесь, и программа попробует забрать cookie token."
+            )
+
+            token = None
+
+            for cookie in driver.get_cookies():
+                if cookie.get("name") == "token":
+                    token = cookie.get("value")
+                    break
+
+            if not token:
+                QMessageBox.warning(
+                    self,
+                    "Token не найден",
+                    "Cookie token не найден. Убедитесь, что вы вошли в аккаунт."
+                )
+                return
+
+            token = token.replace("Bearer ", "").strip()
+            self.token_input.setText(token)
+            self.append_log("Token получен из cookie и вставлен в поле.")
+
+        except Exception as exc:
+            QMessageBox.critical(self, "Ошибка авторизации", str(exc))
+
+        finally:
+            self.auth_button.setEnabled(True)
+            try:
+                driver.quit()
+            except Exception:
+                pass
 
     def _user_id(self) -> int:
         text = self.user_id_input.text().strip()
