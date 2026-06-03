@@ -26,13 +26,8 @@ jobs:
           pip install pyinstaller
           pip install PySide6 requests selenium
 
-      - name: Build onefile exe
-        run: |
-          pyinstaller app_ver2.py ^
-            --onefile ^
-            --windowed ^
-            --name ReDecks ^
-            --collect-all PySide6
+      - name: Build
+        run: pyinstaller --onefile --windowed app_ver2.py
 
       - name: Upload ReDecks.exe
         uses: actions/upload-artifact@v4
